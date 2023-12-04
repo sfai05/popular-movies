@@ -8,6 +8,7 @@ const tmdb = require('../lib/tmdb')
 
 describe('all', function () {
   it('should get a list of movies from metacritic', async function () {
+    this.timeout(60000)
     const movies = await metacritic()
     expect(movies.length).gt(0)
     expect(movies[0].title).to.be.string()
@@ -52,6 +53,7 @@ describe('all', function () {
     expect(movies[0]).must.have.keys([
       'title',
       'imdb_id',
+      'tmdb_id',
       'poster_url'
     ])
     expect(movies[0].title).to.be.string()
