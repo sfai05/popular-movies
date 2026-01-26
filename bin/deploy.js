@@ -3,27 +3,39 @@ const Promise = require('bluebird')
 const moment = require('moment')
 const Index = require('../index')
 const s3 = require('../lib/s3')
+const r2 = require('../lib/r2')
 const json2csv = require('../lib/json2csv')
 const fs = Promise.promisifyAll(require('fs'))
 
-const build = function (listBuilder, filename, opts = {}) {
+const build = function (listBuilder, filename, opts = {}, evaluate = false) {
   return Promise
     .bind({
       listBuilder,
       filename,
-      opts
+      opts,
+      evaluate
     })
     .then(function () {
+      if (this.evaluate) {
+        return this.listBuilder.evaluate()
+      }
+
       return this.listBuilder.filter(this.opts)
     })
     .then(function (movies) {
       console.log({
         filename: this.filename,
         opts: this.opts,
+        evaluate: this.evaluate,
         count: movies.length
       })
 
-      return s3.upload(this.filename, JSON.stringify(movies))
+      const jsonMovies = JSON.stringify(movies)
+
+      return Promise.all([
+        s3.upload(this.filename, jsonMovies),
+        r2.upload(this.filename, jsonMovies)
+      ])
     })
 }
 
@@ -34,10 +46,15 @@ Promise
   .then(function () {
     return [
       {
-        filename: 'movies.json'
+        filename: 'movies.json',
+        evaluate: true
       },
       {
-        filename: `movies-${moment().format('YYYYMMDD')}.json`
+        filename: `movies-${moment().format('YYYYMMDD')}.json`,
+        evaluate: true
+      },
+      {
+        filename: 'all-movies.json'
       },
       {
         filename: 'movies-metacritic-min50.json',
@@ -114,7 +131,7 @@ Promise
     ]
   })
   .mapSeries(function (manifest) {
-    return build(this.listBuilder, manifest.filename, manifest.opts)
+    return build(this.listBuilder, manifest.filename, manifest.opts, manifest.evaluate)
   })
   .then(function () {
     return this.listBuilder.dump()
